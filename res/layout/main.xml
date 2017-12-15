@@ -31,7 +31,7 @@
         android:layout_weight="0.31"
         android:orientation="vertical" >
         <RelativeLayout
-            android:id="@+id/RelativeLayout1"
+            android:id="@+id/RelativeLayout2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="10dp"
@@ -40,21 +40,117 @@
             android:orientation="vertical" >
 
             <Button
-                android:id="@+id/buttonDbg1"
-                android:layout_width="80dp"
+                android:id="@+id/buttonStp1Fwd"
+                android:layout_width="120dp"
                 android:layout_height="80dp"
                 android:padding="2dp"
-                android:text="+"/>
+                android:text="Stepper 1 Forward"/>
 
             <Button
-                android:id="@+id/buttonDbg2"
-                android:layout_width="80dp"
+                android:id="@+id/buttonStp1Rev"
+                android:layout_width="120dp"
                 android:layout_height="80dp"
                 android:padding="2dp"
-                android:text="-"
-                android:layout_toRightOf="@id/buttonDbg1"/>
+                android:text="Stepper 1 reverse"
+                android:layout_toRightOf="@id/buttonStp1Fwd"/>
+
+            <Button
+                android:id="@+id/buttonStp2Fwd"
+                android:layout_width="120dp"
+                android:layout_height="80dp"
+                android:layout_below="@id/buttonStp1Fwd"
+                android:padding="2dp"
+                android:text="Stepper 2 forward"/>
+
+            <Button
+                android:id="@+id/buttonStp2Rev"
+                android:layout_width="120dp"
+                android:layout_height="80dp"
+                android:padding="2dp"
+                android:text="Stepper 2 reverse"
+                android:layout_below="@id/buttonStp1Fwd"
+                android:layout_toRightOf="@id/buttonStp2Fwd"/>
+
+            <Button
+                android:id="@+id/buttonRelease"
+                android:layout_width="120dp"
+                android:layout_height="160dp"
+                android:padding="2dp"
+                android:text="Release steppers"
+                android:layout_toRightOf="@id/buttonStp1Rev"/>
+
+            <Button
+                android:id="@+id/buttonContLeft"
+                android:layout_width="90dp"
+                android:layout_height="180dp"
+                android:padding="2dp"
+                android:text="Turn Left"
+                android:layout_below="@id/buttonStp2Fwd"/>
+
+            <Button
+                android:id="@+id/buttonContStart"
+                android:layout_width="180dp"
+                android:layout_height="90dp"
+                android:padding="2dp"
+                android:text="Run forward"
+                android:layout_toRightOf="@id/buttonContLeft"
+                android:layout_below="@id/buttonStp2Fwd"/>
+
+            <Button
+                android:id="@+id/buttonContStartRev"
+                android:layout_width="180dp"
+                android:layout_height="90dp"
+                android:padding="2dp"
+                android:text="Run backward"
+                android:layout_toRightOf="@id/buttonContLeft"
+                android:layout_below="@id/buttonContStart"/>
+
+            <Button
+                android:id="@+id/buttonContRight"
+                android:layout_width="90dp"
+                android:layout_height="180dp"
+                android:padding="2dp"
+                android:text="Turn Right"
+                android:layout_toRightOf="@id/buttonContStartRev"
+                android:layout_below="@id/buttonStp2Fwd"/>
+
+            <TextView
+                android:id="@+id/textContInterval"
+                android:layout_width="120dp"
+                android:layout_height="24dp"
+                android:layout_marginTop="12dp"
+                android:layout_below="@+id/buttonContLeft"
+                android:text="Interval: 1000ms"/>
+
+            <SeekBar
+                android:id="@+id/seekbarContInterval"
+                android:layout_width="360dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:max="100"
+                android:layout_below="@+id/buttonContLeft"
+                android:layout_toRightOf="@id/textContInterval"/>
+
+            <TextView
+                android:id="@+id/textStepHoldPeriod"
+                android:layout_width="120dp"
+                android:layout_height="24dp"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:layout_below="@+id/textContInterval"
+                android:text="Hold: 100ms"/>
+
+            <SeekBar
+                android:id="@+id/seekbarContHoldRatio"
+                android:layout_width="360dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:max="100"
+                android:layout_below="@+id/textContInterval"
+                android:layout_toRightOf="@id/textStepHoldPeriod"/>
 
         </RelativeLayout>
+
 
 
 
@@ -63,7 +159,7 @@
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:orientation="vertical"
         android:layout_width="fill_parent"
-        android:layout_height="100dp">
+        android:layout_height="10dp">
 
         <ScrollView
             android:id="@+id/SCROLLER_ID"

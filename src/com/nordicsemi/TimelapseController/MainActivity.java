@@ -43,6 +43,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.RadioGroup;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -55,6 +56,10 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
     private static final int UART_PROFILE_DISCONNECTED = 21;
     private static final int STATE_OFF = 10;
     private static final int SETTINGS_ACTIVITY = 100;
+
+    private enum StepperDirection{
+        NONE, FORWARD, REVERSE, TURN_RIGHT, TURN_LEFT;
+    }
 
     private static final String FONT_LABEL_APP_NORMAL = "<font color='#EE0000'>";
     private static final String FONT_LABEL_APP_ERROR = "<font color='#EE0000'>";
@@ -70,8 +75,10 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
     private BluetoothDevice mDevice = null;
     private BluetoothAdapter mBtAdapter = null;
     private Button btnConnectDisconnect;
-    private Button []btnDebug = new Button[2];
-    private byte []mUartData = new byte[6];
+    private SeekBar mSeekbarContInterval, mSeekbarContHoldPeriod;
+    private TextView mTextViewContInterval, mTextViewContHoldPeriod;
+    private Button []btnControl = new Button[9];
+    private int mContInterval, mContHoldPeriod;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -85,11 +92,21 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
             return;
         }
         btnConnectDisconnect    = (Button) findViewById(R.id.btn_select);
-        btnDebug[0] = (Button)findViewById(R.id.buttonDbg1);
-        btnDebug[1] = (Button)findViewById(R.id.buttonDbg2);
+        btnControl[0] = (Button)findViewById(R.id.buttonStp1Fwd);
+        btnControl[1] = (Button)findViewById(R.id.buttonStp1Rev);
+        btnControl[2] = (Button)findViewById(R.id.buttonStp2Fwd);
+        btnControl[3] = (Button)findViewById(R.id.buttonStp2Rev);
+        btnControl[4] = (Button)findViewById(R.id.buttonRelease);
+        btnControl[5] = (Button)findViewById(R.id.buttonContStart);
+        btnControl[6] = (Button)findViewById(R.id.buttonContStartRev);
+        btnControl[7] = (Button)findViewById(R.id.buttonContLeft);
+        btnControl[8] = (Button)findViewById(R.id.buttonContRight);
+        mSeekbarContInterval = (SeekBar)findViewById(R.id.seekbarContInterval);
+        mSeekbarContHoldPeriod = (SeekBar)findViewById(R.id.seekbarContHoldRatio);
+        mTextViewContInterval =(TextView)findViewById(R.id.textContInterval);
+        mTextViewContHoldPeriod =(TextView)findViewById(R.id.textStepHoldPeriod);
         mTextViewLog = (TextView)findViewById(R.id.textViewLog);
         service_init();
-        for(int i = 0; i < 6; i++) mUartData[i] = 0;
 
         // Handler Disconnect & Connect button
         btnConnectDisconnect.setOnClickListener(new View.OnClickListener() {
@@ -116,30 +133,96 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
             }
         });
 
-        btnDebug[0].setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if(mService.isConnected()){
-                    byte []command = new byte[1];
-                    command[0] = 'a';
-                    mService.writeRXCharacteristic(command);
+        // Set the button command actions
+        for(int i = 0; i < 9; i++){
+            final int index = i;
+            btnControl[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if(mService.isConnected()){
+                        byte []newCommand;
+                        switch(index){
+                            case 0:
+                                newCommand = commandBuilder(StepperDirection.FORWARD, StepperDirection.NONE, 0, 0);
+                                break;
+                            case 1:
+                                newCommand = commandBuilder(StepperDirection.REVERSE, StepperDirection.NONE, 0, 0);
+                                break;
+                            case 2:
+                                newCommand = commandBuilder(StepperDirection.TURN_RIGHT, StepperDirection.NONE, 0, 0);
+                                break;
+                            case 3:
+                                newCommand = commandBuilder(StepperDirection.TURN_LEFT, StepperDirection.NONE, 0, 0);
+                                break;
+                            case 5:
+                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.FORWARD, mContInterval, mContHoldPeriod);
+                                break;
+                            case 6:
+                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.REVERSE, mContInterval, mContHoldPeriod);
+                                break;
+                            case 7:
+                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.TURN_LEFT, mContInterval, mContHoldPeriod);
+                                break;
+                            case 8:
+                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.TURN_RIGHT, mContInterval, mContHoldPeriod);
+                                break;
+                            case 4:
+                            default:
+                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.NONE, 0, 0);
+                                break;
+                        }
+                        mService.writeRXCharacteristic(newCommand);
+                    }
                 }
-            }
-        });
+            });
+        }
 
-        btnDebug[1].setOnClickListener(new View.OnClickListener() {
+        mSeekbarContInterval.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
-            public void onClick(View v) {
-                if(mService.isConnected()){
-                    byte []command = new byte[1];
-                    command[0] = 'b';
-                    mService.writeRXCharacteristic(command);
-                }
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                mContInterval = i*10 + 20;
+                mTextViewContInterval.setText("Interval: " + String.valueOf(mContInterval) + "ms");
             }
-        });
 
-        // Set initial UI state
-        //mRgbLedButton.setRgbChangedListener(this);
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        }) ;
+
+        mSeekbarContHoldPeriod.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                mContHoldPeriod = i;
+                mTextViewContHoldPeriod.setText("Hold period: " + String.valueOf(mContHoldPeriod) + "%");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        }) ;
+    }
+
+    private byte [] commandBuilder(StepperDirection singleCmd, StepperDirection contCmd, int contInterval, int stepHoldRatio){
+        byte []command = new byte[6];
+        command[0] = 'A';
+        command[1] = (byte)singleCmd.ordinal();
+        command[2] = (byte)contCmd.ordinal();
+        command[3] = (byte)((contInterval >> 8) & 0xFF);
+        command[4] = (byte)(contInterval & 0xFF);
+        command[5] = (byte)(stepHoldRatio & 0xFF);
+        return command;
     }
 
 
@@ -237,7 +320,6 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
                         btnConnectDisconnect.setText("Connect");
                         writeToLog("Disconnected", AppLogFontType.APP_NORMAL);
                         mState = UART_PROFILE_DISCONNECTED;
-                        mUartData[0] = mUartData[1] = mUartData[2] = mUartData[3] = mUartData[4] = mUartData[5] = 0;
                         mService.close();
                     }
                 });
