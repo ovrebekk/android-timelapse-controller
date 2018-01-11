@@ -16,11 +16,12 @@
 
 package com.nordicsemi.TimelapseController;
 
+import java.nio.ByteBuffer;
 import java.text.DateFormat;
 import java.util.Date;
 
 
-import com.nordicsemi.TimelapseController.gui.IntensityLedButton;
+import com.nordicsemi.TimelapseController.gui.DirectionController;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
@@ -47,7 +48,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class MainActivity extends Activity implements RadioGroup.OnCheckedChangeListener, IntensityLedButton.OnLedChangeListener {
+public class MainActivity extends Activity implements RadioGroup.OnCheckedChangeListener {
     private static final int REQUEST_SELECT_DEVICE = 1;
     private static final int REQUEST_ENABLE_BT = 2;
     private static final int UART_PROFILE_READY = 10;
@@ -75,10 +76,28 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
     private BluetoothDevice mDevice = null;
     private BluetoothAdapter mBtAdapter = null;
     private Button btnConnectDisconnect;
-    private SeekBar mSeekbarContInterval, mSeekbarContHoldPeriod;
-    private TextView mTextViewContInterval, mTextViewContHoldPeriod;
-    private Button []btnControl = new Button[9];
-    private int mContInterval, mContHoldPeriod;
+    private SeekBar mSeekbarStepperSpeed, mSeekbarContHoldPeriod;
+    private SeekBar mSeekbarSpeedForward, mSeekbarSpeedRight;
+    private Button mBtnIncLeft, mBtnIncRight, mBtnIncFwd, mBtnIncRev;
+    private TextView mTextViewStepperSpeed, mTextViewContHoldPeriod, mTextViewSpeedRotation;
+    private int mContHoldPeriod;
+    private float mStepperSpeed = 100.0f;
+    private float mStepperDutyCycle = 1.0f;
+    private float mStepperSpeedForward = 0.0f, mStepperSpeedRight = 0.0f;
+
+    byte [] bleUpdateCommand = null;
+    Handler bleUpdateHandler = new Handler();
+    Runnable bleUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if(bleUpdateCommand != null){
+                mService.writeRXCharacteristic(bleUpdateCommand);
+                bleUpdateCommand = null;
+            }
+            bleUpdateHandler.postDelayed(this, 100);
+        }
+    };
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -92,20 +111,18 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
             return;
         }
         btnConnectDisconnect    = (Button) findViewById(R.id.btn_select);
-        btnControl[0] = (Button)findViewById(R.id.buttonStp1Fwd);
-        btnControl[1] = (Button)findViewById(R.id.buttonStp1Rev);
-        btnControl[2] = (Button)findViewById(R.id.buttonStp2Fwd);
-        btnControl[3] = (Button)findViewById(R.id.buttonStp2Rev);
-        btnControl[4] = (Button)findViewById(R.id.buttonRelease);
-        btnControl[5] = (Button)findViewById(R.id.buttonContStart);
-        btnControl[6] = (Button)findViewById(R.id.buttonContStartRev);
-        btnControl[7] = (Button)findViewById(R.id.buttonContLeft);
-        btnControl[8] = (Button)findViewById(R.id.buttonContRight);
-        mSeekbarContInterval = (SeekBar)findViewById(R.id.seekbarContInterval);
+        mSeekbarStepperSpeed = (SeekBar)findViewById(R.id.seekbarContInterval);
         mSeekbarContHoldPeriod = (SeekBar)findViewById(R.id.seekbarContHoldRatio);
-        mTextViewContInterval =(TextView)findViewById(R.id.textContInterval);
+        mTextViewStepperSpeed =(TextView)findViewById(R.id.textContInterval);
         mTextViewContHoldPeriod =(TextView)findViewById(R.id.textStepHoldPeriod);
         mTextViewLog = (TextView)findViewById(R.id.textViewLog);
+        mSeekbarSpeedForward = (SeekBar)findViewById(R.id.seekbarSpeedForward);
+        mSeekbarSpeedRight= (SeekBar)findViewById(R.id.seekbarSpeedRight);
+        mTextViewSpeedRotation = (TextView)findViewById(R.id.textViewSpeedRotation);
+        mBtnIncFwd = (Button)findViewById(R.id.buttonIncUp);
+        mBtnIncRev = (Button)findViewById(R.id.buttonIncDown);
+        mBtnIncLeft = (Button)findViewById(R.id.buttonIncLeft);
+        mBtnIncRight = (Button)findViewById(R.id.buttonIncRight);
         service_init();
 
         // Handler Disconnect & Connect button
@@ -133,85 +150,143 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
             }
         });
 
-        // Set the button command actions
-        for(int i = 0; i < 9; i++){
-            final int index = i;
-            btnControl[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if(mService.isConnected()){
-                        byte []newCommand;
-                        switch(index){
-                            case 0:
-                                newCommand = commandBuilder(StepperDirection.FORWARD, StepperDirection.NONE, 0, 0);
-                                break;
-                            case 1:
-                                newCommand = commandBuilder(StepperDirection.REVERSE, StepperDirection.NONE, 0, 0);
-                                break;
-                            case 2:
-                                newCommand = commandBuilder(StepperDirection.TURN_RIGHT, StepperDirection.NONE, 0, 0);
-                                break;
-                            case 3:
-                                newCommand = commandBuilder(StepperDirection.TURN_LEFT, StepperDirection.NONE, 0, 0);
-                                break;
-                            case 5:
-                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.FORWARD, mContInterval, mContHoldPeriod);
-                                break;
-                            case 6:
-                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.REVERSE, mContInterval, mContHoldPeriod);
-                                break;
-                            case 7:
-                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.TURN_LEFT, mContInterval, mContHoldPeriod);
-                                break;
-                            case 8:
-                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.TURN_RIGHT, mContInterval, mContHoldPeriod);
-                                break;
-                            case 4:
-                            default:
-                                newCommand = commandBuilder(StepperDirection.NONE, StepperDirection.NONE, 0, 0);
-                                break;
-                        }
-                        mService.writeRXCharacteristic(newCommand);
-                    }
-                }
-            });
-        }
-
-        mSeekbarContInterval.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        mSeekbarStepperSpeed.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                mContInterval = i*10 + 20;
-                mTextViewContInterval.setText("Interval: " + String.valueOf(mContInterval) + "ms");
+                switch(i%3){
+                    case 0: mStepperSpeed = 0.1f; break;
+                    case 1: mStepperSpeed = 0.2f; break;
+                    default: mStepperSpeed = 0.5f; break;
+                }
+                mStepperSpeed *= Math.pow(10.0, (double)(i / 3));
+                updateSteppers();
             }
 
             @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-
-            }
+            public void onStartTrackingTouch(SeekBar seekBar) {}
 
             @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-
-            }
+            public void onStopTrackingTouch(SeekBar seekBar) {}
         }) ;
 
         mSeekbarContHoldPeriod.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                mContHoldPeriod = i;
-                mTextViewContHoldPeriod.setText("Hold period: " + String.valueOf(mContHoldPeriod) + "%");
+                mStepperDutyCycle = (float)i / 100.0f;
+                updateSteppers();
             }
 
             @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-
-            }
+            public void onStartTrackingTouch(SeekBar seekBar) {}
 
             @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-
-            }
+            public void onStopTrackingTouch(SeekBar seekBar) {}
         }) ;
+
+
+        mSeekbarSpeedForward.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                if(i < 20){
+                    i = (i - 20);
+                }
+                else if(i > 22){
+                    i = (i - 22);
+                }
+                else {
+                    i = 0;
+                }
+                mStepperSpeedForward = (float)i*5.0f;
+                updateSteppers();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        mSeekbarSpeedRight.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                if(i < 40){
+                    i = (i - 40);
+                }
+                else if(i > 44){
+                    i = (i - 44);
+                }
+                else {
+                    i = 0;
+                }
+                mStepperSpeedRight = (float)i / 40.0f;
+                updateSteppers();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        mBtnIncFwd.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int progress = mSeekbarSpeedForward.getProgress();
+                mSeekbarSpeedForward.setProgress(progress + 1);
+            }
+        });
+
+        mBtnIncRev.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int progress = mSeekbarSpeedForward.getProgress();
+                mSeekbarSpeedForward.setProgress(progress - 1);
+            }
+        });
+
+        mBtnIncLeft.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int progress = mSeekbarSpeedRight.getProgress();
+                mSeekbarSpeedRight.setProgress(progress - 1);
+            }
+        });
+
+        mBtnIncRight.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int progress = mSeekbarSpeedRight.getProgress();
+                mSeekbarSpeedRight.setProgress(progress + 1);
+            }
+        });
+    }
+
+    private void updateSteppers(){
+        float speedForward = mStepperSpeedForward / 100.0f;//mMainDirectionController.getSpeedForward();
+        float speedRight = mStepperSpeedRight;// mMainDirectionController.getSpeedRight();
+
+        mTextViewContHoldPeriod.setText("Power factor: " + String.valueOf(mStepperDutyCycle * 100.0f) + "%");
+        mTextViewSpeedRotation.setText("Speed: " + String.valueOf(mStepperSpeedForward) + ", Rotation: " + String.valueOf(mStepperSpeedRight));
+        mTextViewStepperSpeed.setText("Speed: " + String.valueOf(mStepperSpeed) + " steps/second");
+
+        /*if(speedRight > 0.0f){
+            if((speedForward + speedRight) > 1.0f) speedRight = 1.0f - speedForward;
+            else if((speedForward - speedRight) < -1.0f) speedRight = 1.0f + speedForward;
+        }
+        else {
+            if((speedForward + speedRight) < -1.0f) speedRight = -1.0f - speedForward;
+            else if((speedForward - speedRight) > 1.0f) speedRight = -1.0f + speedForward;
+        }*/
+
+        float stepperSpeedLeft = speedForward + speedRight;
+        float stepperSpeedRight = speedForward - speedRight;
+
+        int intLeft = (Math.abs(stepperSpeedLeft) > 0.01f) ? (int)(1000000.0f / (stepperSpeedLeft * mStepperSpeed)) : 0;
+        int intRight = (Math.abs(stepperSpeedRight) > 0.01f) ? (int)(1000000.0f / (stepperSpeedRight * mStepperSpeed)) : 0;
+        Log.d("DirectionChange", "Left: " + String.valueOf(intLeft) + ", Right: " + String.valueOf(intRight));
+        bleUpdateCommand = commandBuilderB(intLeft, intRight);
     }
 
     private byte [] commandBuilder(StepperDirection singleCmd, StepperDirection contCmd, int contInterval, int stepHoldRatio){
@@ -225,23 +300,15 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
         return command;
     }
 
-
-    @Override
-    public void onIntensityChanged(IntensityLedButton sender, boolean ledOn, float ledIntensity) {
-        byte[] uartData = new byte[6];
-        writeToLog("Set intensity: " + String.valueOf(ledIntensity), AppLogFontType.APP_NORMAL);
-        if(mService.isConnected()){
-            String uartString;
-            int intensity = (int)(ledIntensity * 255.0f);
-            uartData[0] = (byte)(ledOn ? '1' : '0');
-            uartData[1] = (byte)'-';
-            uartData[2] = (byte)(intensity / 100 + '0');
-            uartData[3] = (byte)((intensity / 10) % 10 + '0');
-            uartData[4] = (byte)(intensity % 10 + '0');
-            uartData[5] = 0;
-            mService.writeRXCharacteristic(uartData);
-        }
+    private byte [] commandBuilderB(int intervalLeft, int intervalRight){
+        ByteBuffer byteBuffer = ByteBuffer.allocate(10);
+        byteBuffer.put((byte)'B');
+        byteBuffer.putInt(intervalLeft);
+        byteBuffer.putInt(intervalRight);
+        byteBuffer.put((byte)(255.0f * mStepperDutyCycle));
+        return byteBuffer.array();
     }
+
 
     //UART service connected/disconnected
     private ServiceConnection mServiceConnection = new ServiceConnection() {
@@ -306,6 +373,7 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
                         String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
                         Log.d(TAG, "UART_CONNECT_MSG");
                         btnConnectDisconnect.setText("Disconnect");
+                        bleUpdateHandler.postDelayed(bleUpdateRunnable, 0);
                         writeToLog("Connected", AppLogFontType.APP_NORMAL);
                     }
                 });
@@ -318,6 +386,7 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
                         String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
                         Log.d(TAG, "UART_DISCONNECT_MSG");
                         btnConnectDisconnect.setText("Connect");
+                        bleUpdateHandler.removeCallbacks(bleUpdateRunnable);
                         writeToLog("Disconnected", AppLogFontType.APP_NORMAL);
                         mState = UART_PROFILE_DISCONNECTED;
                         mService.close();

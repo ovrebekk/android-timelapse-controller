@@ -73,4 +73,13 @@
         <attr name="backgroundDrawable"/>
         <attr name="graphBckDrawable" format = "reference"/>
     </declare-styleable>
+
+    <declare-styleable name="DirectionController">
+        <attr name="enabled"/>
+
+        <attr name="background" format="reference"/>
+        <attr name="selectorDrawable" format="reference"/>
+        <attr name="selectorSize" format="dimension"/>
+        <attr name="selectorMoveLimitRadiusFactor" format="float"/>
+    </declare-styleable>
 </resources>
