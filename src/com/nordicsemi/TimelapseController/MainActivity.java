@@ -42,6 +42,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.text.Html;
 import android.util.Log;
 import android.view.View;
+import android.view.Window;
 import android.widget.Button;
 import android.widget.RadioGroup;
 import android.widget.SeekBar;
@@ -102,7 +103,9 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestWindowFeature(Window.FEATURE_CUSTOM_TITLE);
         setContentView(R.layout.main);
+        getWindow().setFeatureInt(Window.FEATURE_CUSTOM_TITLE, R.layout.title_bar);
 
         mBtAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mBtAdapter == null) {
@@ -110,7 +113,7 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
             finish();
             return;
         }
-        btnConnectDisconnect    = (Button) findViewById(R.id.btn_select);
+        btnConnectDisconnect    = (Button) findViewById(R.id.btn_connect);
         mSeekbarStepperSpeed = (SeekBar)findViewById(R.id.seekbarContInterval);
         mSeekbarContHoldPeriod = (SeekBar)findViewById(R.id.seekbarContHoldRatio);
         mTextViewStepperSpeed =(TextView)findViewById(R.id.textContInterval);
